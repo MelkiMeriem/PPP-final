@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import Header from './components/Header';
 import ScannerSection from './components/ScannerSection';
 import ResultsSection from './components/ResultsSection';
+import PresentationSection from './components/PresentationSection';
+import AboutSection from './components/AboutSection';
 
 import './App.css';
 
@@ -42,6 +44,7 @@ function App() {
       <div className="container">
         <Header />
         <div className="app-content">
+          <PresentationSection />
           <ScannerSection
             onScanComplete={handleScanComplete}
             scanStatus={scanStatus}
@@ -50,13 +53,14 @@ function App() {
             selectedAttackType={selectedAttackType}
             onAttackTypeChange={handleAttackTypeChange}
             targetUrl={targetUrl}
-            onUrlChange={handleUrlChange}
-          />
+            onUrlChange={handleUrlChange} />
           {scanStatus === 'completed' && scanData && (
-            <ResultsSection scanData={scanData} />
+            <ResultsSection
+              scanData={scanData}
+              scanStatus={scanStatus} />
           )}
+          <AboutSection />
         </div>
-
       </div>
     </div>
   );

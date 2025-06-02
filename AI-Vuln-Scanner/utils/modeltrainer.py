@@ -8,6 +8,9 @@ import torch
 from torch.utils.data import Dataset
 import os
 from config import Config
+import joblib
+from config import Config
+
 
 class CVEDataset(Dataset):
     """Custom Dataset for CVE data"""
@@ -101,4 +104,44 @@ def train_and_save_models():
     # Training arguments
     training_args = TrainingArguments(
         output_dir=Config.BERT_MODEL_DIR,
-        num
+        num_train_epochs=3,
+        per_device_train_batch_size=8,
+        evaluation_strategy="epoch",
+        save_strategy="epoch",
+        logging_dir='./logs',
+        load_best_model_at_end=True,
+    )
+    
+    # Trainer
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=val_dataset,
+    )
+    
+    # Train and save
+    trainer.train()
+    trainer.save_model(Config.BERT_MODEL_DIR)
+    tokenizer.save_pretrained(Config.BERT_MODEL_DIR)
+    print(f"BERT model saved to {Config.BERT_MODEL_DIR}")
+
+
+class VulnerabilityClassifier:
+    def __init__(self):
+        self.tfidf = joblib.load(Config.TFIDF_VECTORIZER)
+        self.model = joblib.load(Config.XGBOOST_MODEL)
+    
+    def predict(self, text):
+        """Predict vulnerability probability"""
+        cleaned_text = clean_text(text)
+        features = self.tfidf.transform([cleaned_text])
+        proba = self.model.predict_proba(features)[0][1]
+        return {
+            'prediction': int(proba >= 0.5),
+            'confidence': float(proba),
+            'is_critical': proba >= 0.7
+        }
+
+if __name__ == "__main__":
+    train_and_save_models()

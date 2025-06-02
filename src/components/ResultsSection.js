@@ -68,18 +68,24 @@ const ResultsSection = ({ scanData }) => {
     ...scanData,
     vulnerabilities: scanData?.vulnerabilities || [
       {
+        name: 'SQL Injection',
         type: 'SQL Injection',
         severity: 'high',
+        description: 'Detected SQL Injection vulnerability in target URL',
         details: 'Detected SQL Injection vulnerability in target URL',
         confidence: 0.95,
-        aiAnalysis: 'AI model detected suspicious patterns in input handling'
+        aiAnalysis: 'AI model detected suspicious patterns in input handling',
+        impact: 'High risk of data theft and unauthorized access'
       },
       {
-        type: 'Potential RCE',
+        name: 'Remote Code Execution',
+        type: 'RCE',
         severity: 'medium',
+        description: 'AI-powered fuzzing discovered potential code execution path',
         details: 'AI-powered fuzzing discovered potential code execution path',
         confidence: 0.75,
-        aiAnalysis: 'Pattern matches known RCE vectors'
+        aiAnalysis: 'Pattern matches known RCE vectors',
+        impact: 'Medium risk of server compromise'
       }
     ]
   };
@@ -288,38 +294,146 @@ const ResultsSection = ({ scanData }) => {
       y += 15;
 
       // Add detailed vulnerabilities list
-      console.log('Adding detailed vulnerabilities...');
-      enhancedScanData.vulnerabilities.forEach((vuln, index) => {
-        if (!vuln.name || !vuln.severity) {
-          console.warn(`Skipping invalid vulnerability at index ${index}:`, vuln);
-          return;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text('Detailed Vulnerability Analysis', 15, y);
+      y += 15;
+
+      // Process vulnerabilities safely
+      const processedVulnerabilities = enhancedScanData.vulnerabilities.map(vuln => ({
+        ...vuln,
+        name: vuln.name || vuln.type || 'Unknown Attack',
+        type: vuln.type || 'Unknown Attack',
+        severity: vuln.severity || 'medium',
+        description: vuln.description || vuln.details || 'No description available',
+        details: vuln.details || vuln.description || 'No details available',
+        confidence: typeof vuln.confidence === 'number' ? vuln.confidence : 0.5,
+        aiAnalysis: vuln.aiAnalysis || 'Pattern matches known vulnerability vectors',
+        impact: vuln.impact || vuln.severity?.toUpperCase() || 'MEDIUM'
+      }));
+
+      processedVulnerabilities.forEach((vuln, index) => {
+
+        // Add page break if needed
+        if (y > 250) {
+          doc.addPage();
+          y = 20;
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(14);
+          doc.text('Vulnerability Analysis (Continued)', 15, y);
+          y += 15;
         }
 
-        doc.setFontSize(11);
-        doc.text(`Vulnerability ${index + 1}: ${vuln.name}`, 15, y);
+        // Vulnerability header
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.text(`Vulnerability ${index + 1}: ${vuln.name || vuln.type}`, 15, y);
+        y += 10;
+
+        // Severity and Confidence
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.text(`Severity: ${vuln.severity.toUpperCase()}`, 15, y);
+        y += 8;
+        doc.text(`Confidence: ${(vuln.confidence * 100).toFixed(1)}%`, 15, y);
+        y += 10;
+
+        // Technical Details
+        doc.setFont('helvetica', 'bold');
+        doc.text('Technical Details:', 15, y);
+        y += 8;
+        doc.setFont('helvetica', 'normal');
+        doc.text(`- Attack Vector: ${vuln.type}`, 15, y);
+        y += 8;
+        doc.text(`- Impact Level: ${vuln.severity.toUpperCase()}`, 15, y);
+        y += 8;
+        doc.text(`- Detection Method: AI-powered Analysis`, 15, y);
+        y += 10;
+
+        // Detailed Analysis
+        doc.setFont('helvetica', 'bold');
+        doc.text('Detailed Analysis:', 15, y);
+        y += 8;
+        doc.setFont('helvetica', 'normal');
+        doc.text(`- Vulnerability Type: ${vuln.type}`, 15, y);
+        y += 8;
+        doc.text(`- Severity Rating: ${vuln.severity}`, 15, y);
+        y += 8;
+        doc.text(`- Detection Confidence: ${(vuln.confidence * 100).toFixed(1)}%`, 15, y);
+        y += 8;
+        doc.text(`- AI Analysis: ${vuln.aiAnalysis || 'Pattern matches known vulnerability vectors'}`, 15, y);
+        y += 10;
+
+        // Recommendations
+        doc.setFont('helvetica', 'bold');
+        doc.text('Recommendations:', 15, y);
+        y += 8;
+        doc.setFont('helvetica', 'normal');
+        doc.text('- Implement proper input validation and sanitization', 15, y);
+        y += 8;
+        doc.text('- Use parameterized queries for database interactions', 15, y);
+        y += 8;
+        doc.text('- Enable security headers and CSP policies', 15, y);
+        y += 8;
+        doc.text('- Regular security audits and penetration testing', 15, y);
+        y += 10;
+
+        // Risk Assessment
+        doc.setFont('helvetica', 'bold');
+        doc.text('Risk Assessment:', 15, y);
+        y += 8;
+        doc.setFont('helvetica', 'normal');
+        
+        // Get severity level with default value
+        const severityLevel = vuln.severity?.toLowerCase() || 'medium';
+        doc.text(`- Impact: ${severityLevel === 'high' ? 'Critical' : severityLevel === 'medium' ? 'High' : 'Medium'}`, 15, y);
+        y += 8;
+        
+        // Format confidence with default value
+        const confidence = vuln.confidence || 0.5;
+        doc.text(`- Likelihood: ${(confidence * 100).toFixed(1)}%`, 15, y);
+        y += 8;
+        
+        // Get risk level with default value
+        doc.text(`- Risk Level: ${(vuln.severity || 'Medium').toUpperCase()}`, 15, y);
+        y += 15;
+
+        // Add divider between vulnerabilities
+        doc.setLineWidth(0.5);
+        doc.setDrawColor(220);
+        doc.line(15, y, 195, y);
+        y += 10;
 
         // Add severity indicator
-        if (color[vuln.severity]) {
-          doc.setFillColor(color[vuln.severity][0], color[vuln.severity][1], color[vuln.severity][2]);
-          doc.rect(15, y + 5, 10, 10, 'F');
-          doc.text(`Severity: ${vuln.severity}`, 30, y + 10);
+        const severity = vuln.severity?.toLowerCase() || 'medium';
+        if (color[severity]) {
+          doc.setFillColor(color[severity][0], color[severity][1], color[severity][2]);
+          doc.rect(15, y, 10, 10, 'F');
+          doc.setFontSize(8);
+          doc.setTextColor(255, 255, 255);
+          doc.text(severity.toUpperCase(), 17, y + 6);
+          doc.setTextColor(0, 0, 0);
         }
+        y += 15;
 
         // Add vulnerability details
-        y += 15;
         doc.setFontSize(9);
         
-        // Add description if available
-        if (vuln.description) {
-          doc.text(`Description: ${vuln.description}`, 15, y);
-          y += 8;
-        }
+        // Add description
+        doc.text(`Description: ${vuln.description || vuln.details || 'No description available'}`, 15, y);
+        y += 8;
         
-        // Add impact if available
-        if (vuln.impact) {
-          doc.text(`Impact: ${vuln.impact}`, 15, y);
-          y += 8;
-        }
+        // Add impact
+        doc.text(`Impact: ${vuln.impact || vuln.severity.toUpperCase()}`, 15, y);
+        y += 8;
+        
+        // Add confidence
+        doc.text(`Confidence: ${(vuln.confidence * 100).toFixed(1)}%`, 15, y);
+        y += 8;
+        
+        // Add AI analysis
+        doc.text(`AI Analysis: ${vuln.aiAnalysis || 'Pattern matches known vulnerability vectors'}`, 15, y);
+        y += 15;
 
         // Add recommendations based on vulnerability type
         console.log('Adding recommendations for:', vuln.name);

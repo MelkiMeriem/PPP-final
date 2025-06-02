@@ -6,6 +6,7 @@ const ScannerSection = ({
   scanStatus, 
   setScanStatus,
   attackTypes,
+  comprehensiveScanTypes,
   selectedAttackType,
   onAttackTypeChange,
   targetUrl,
@@ -43,23 +44,39 @@ const ScannerSection = ({
       const mockResults = {
         target: targetUrl,
         attackType: selectedAttackType,
-        vulnerabilities: [
-          {
-            type: selectedAttackType,
-            severity: 'high',
-            details: `Detected ${selectedAttackType} vulnerability in ${targetUrl}`,
-            confidence: 0.95,
-            aiAnalysis: 'AI model detected suspicious patterns in input handling'
-          },
-          {
-            type: 'Potential RCE',
-            severity: 'medium',
-            details: 'AI-powered fuzzing discovered potential code execution path',
-            confidence: 0.75,
-            aiAnalysis: 'Pattern matches known RCE vectors'
-          }
-        ]
+        vulnerabilities: []
       };
+
+      // Generate comprehensive scan results if Full Attack Types is selected
+      if (selectedAttackType === 'Full Attack Types') {
+        comprehensiveScanTypes.forEach(type => {
+          const vulnerability = {
+            name: type || 'Unknown Attack',
+            type: type || 'Unknown Attack',
+            severity: Math.random() > 0.7 ? 'high' : Math.random() > 0.4 ? 'medium' : 'low',
+            description: `Detected potential ${type?.toLowerCase() || 'unknown'} vulnerability in ${targetUrl}`,
+            details: `Detected potential ${type?.toLowerCase() || 'unknown'} vulnerability in ${targetUrl}`,
+            confidence: Math.random() * 0.5 + 0.5, // Random confidence between 0.5 and 1.0
+            aiAnalysis: `AI model detected suspicious patterns in ${type?.toLowerCase() || 'unknown'} protection`,
+            impact: 'Potential security risk'
+          };
+          mockResults.vulnerabilities.push(vulnerability);
+        });
+      } else {
+        // Generate specific attack type results
+        mockResults.vulnerabilities = [
+          {
+            name: selectedAttackType || 'Unknown Attack',
+            type: selectedAttackType || 'Unknown Attack',
+            severity: 'high',
+            description: `Detected ${selectedAttackType?.toLowerCase() || 'unknown'} vulnerability in ${targetUrl}`,
+            details: `Detected ${selectedAttackType?.toLowerCase() || 'unknown'} vulnerability in ${targetUrl}`,
+            confidence: 0.95,
+            aiAnalysis: 'AI model detected suspicious patterns in input handling',
+            impact: 'High risk security issue'
+          }
+        ];
+      }
       
       onScanComplete(mockResults);
     }, 2000);

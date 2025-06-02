@@ -8,6 +8,7 @@ import AboutSection from './components/AboutSection';
 import './App.css';
 
 const attackTypes = [
+  'Full Attack Types',
   'SQL Injection',
   'Cross-Site Scripting (XSS)',
   'Remote Code Execution (RCE)',
@@ -17,6 +18,28 @@ const attackTypes = [
   'Directory Traversal',
   'Insecure Deserialization',
   'File Upload Vulnerabilities'
+];
+
+// Define comprehensive scan types for Full Attack Types
+const comprehensiveScanTypes = [
+  'SSL/TLS Security',
+  'Header Security',
+  'Content Security Policy',
+  'XSS Protection',
+  'SQL Injection',
+  'RCE',
+  'CSRF',
+  'SSRF',
+  'Command Injection',
+  'Directory Traversal',
+  'Deserialization',
+  'File Upload',
+  'Authentication Bypass',
+  'Path Traversal',
+  'Buffer Overflow',
+  'Memory Leaks',
+  'Rate Limiting',
+  'Session Management'
 ];
 
 function App() {
@@ -50,6 +73,7 @@ function App() {
             scanStatus={scanStatus}
             setScanStatus={setScanStatus}
             attackTypes={attackTypes}
+            comprehensiveScanTypes={comprehensiveScanTypes}
             selectedAttackType={selectedAttackType}
             onAttackTypeChange={handleAttackTypeChange}
             targetUrl={targetUrl}

@@ -1,0 +1,90 @@
+.about-section {
+  padding: 4rem 2rem;
+  background: var(--background);
+  margin-top: 3rem;
+}
+
+.about-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.about-section h2 {
+  font-size: 2.5rem;
+  color: var(--primary-color);
+  margin-bottom: 2rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.developers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+  padding: 0 1rem;
+  margin-bottom: 2rem;
+}
+
+.project-info {
+  font-size: 1rem;
+  color: var(--card-light-text);
+  margin: 0;
+  line-height: 1.5;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+  opacity: 0.8;
+}
+
+.developers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+  padding: 0 1rem;
+}
+
+.developer-card {
+  background: var(--card-bg);
+  padding: 2rem;
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border-color);
+  text-align: center;
+  transition: transform 0.3s ease;
+}
+
+.developer-card:hover {
+  transform: translateY(-10px);
+  border-color: var(--primary-color);
+}
+
+.developer-avatar {
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 1.5rem;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 255, 136, 0.2);
+}
+
+.profile-photo {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 50%;
+  transition: transform 0.3s ease;
+  background-size: cover;
+  background-position: center;
+}
+
+.developer-card:hover .profile-photo {
+  transform: scale(1.05);
+}
+
+.developer-card h3 {
+  font-size: 1.2rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-color);
+}
+
+.role {
+  color: var(--card-light-text);
+  font-size: 0.9rem;
+}

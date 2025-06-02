@@ -1,6 +1,6 @@
-# AI Web Fuzzer
+# SecureScan
 
-**AI Web Fuzzer** is a Python-based web application security fuzzer designed to automatically detect common web vulnerabilities by sending crafted requests and analyzing responses. The tool leverages AI techniques for intelligent fuzzing and reports potential vulnerabilities with detailed information. It is ideal for penetration testers, security researchers, and developers looking to automate web security testing.
+**SecurScan** is a Python-based web application security fuzzer designed to automatically detect common web vulnerabilities by sending crafted requests and analyzing responses. The tool leverages AI techniques for intelligent fuzzing and reports potential vulnerabilities with detailed information. It is ideal for penetration testers, security researchers, and developers looking to automate web security testing.
 
 ---
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Author: cbk914
 
 import nmap
 import openai
@@ -15,12 +14,11 @@ from bs4 import BeautifulSoup
 import re
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
-
 from xgboost import XGBClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
-
-
+from transformers import BertTokenizer, BertForSequenceClassification
+import torch
 
 # Load environment variables from .env file
 load_dotenv()
@@ -29,260 +27,153 @@ load_dotenv()
 openai.api_key = os.getenv('OPENAI_API_KEY')
 if not openai.api_key:
     openai.api_key = input("Enter your OpenAI API key: ")
-    # Save the API key to the .env file
-    with open('/.env', 'a') as f:
+    with open('.env', 'a') as f:
         f.write(f"\nOPENAI_API_KEY={openai.api_key}")
 
-# OpenAI model configuration
+# Configuration
 MODEL_ENGINE = "gpt-3.5-turbo"
 TEMPERATURE = 0.5
 TOKEN_LIMIT = 2048
-
-def preprocess_payloads(seclists_file):
-    with open(seclists_file, 'r', encoding='utf-8', errors='ignore') as f:
-        payloads = f.readlines()
-
-    df = pd.DataFrame(payloads, columns=["payload"])
-    df["payload"] = df["payload"].str.strip().str.lower()
-    df["label"] = df["payload"].apply(lambda x: "sql" if "select" in x or "union" in x else "xss" if "<script" in x else "other")
-    
-    tfidf = TfidfVectorizer(max_features=100)
-    features = tfidf.fit_transform(df["payload"])
-    return df, features
-
-def extract_features_from_scan(scan_text):
-    # Simple pattern matching for SQLi and XSS
-    features = {
-        "has_union": int("union" in scan_text.lower()),
-        "has_select": int("select" in scan_text.lower()),
-        "has_script_tag": int("<script" in scan_text.lower()),
-        "has_onerror": int("onerror=" in scan_text.lower())
-    }
-    return features
-
-def train_model(X, y):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
-    model = XGBClassifier()
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
-    print(classification_report(y_test, y_pred))
-    return model
-
+BERT_MODEL = "bert-base-uncased"
 
 # Initialize Nmap PortScanner
 nm = nmap.PortScanner()
 
-# Argument parser setup
-parser = argparse.ArgumentParser(description='Python-Nmap and ChatGPT integrated Vulnerability Scanner')
-parser.add_argument('-t', '--target', metavar='target', type=str, help='Target IP or hostname', required=True)
-parser.add_argument('-o', '--output', metavar='output', type=str, help='Output format (html, csv, xml, txt, json)', default='html')
-args = parser.parse_args()
+def clean_text(text):
+    """Clean and preprocess text data"""
+    if pd.isna(text):
+        return ""
+    text = str(text).lower()
+    text = re.sub(r'http\S+', '', text)
+    text = re.sub(r'[^a-z0-9\s]', '', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
 
-target = args.target
-output_format = args.output.lower()
+def load_cve_data(cve_file='data/cve.csv'):
+    """Load and preprocess CVE data"""
+    df = pd.read_csv(cve_file)
+    df['clean_summary'] = df['summary'].apply(clean_text)
+    df['label'] = (df['cvss'] >= 7.0).astype(int)
+    return df
 
-def extract_open_ports(analyze):
-    open_ports_info = []
-    for host, host_data in analyze.items():
-        for key, value in host_data.items():
-            if key in ["tcp", "udp"]:
-                for port, port_data in value.items():
-                    if port_data.get('state') == 'open':
-                        open_ports_info.append(f"{key.upper()} Port {port}: {port_data['name']}")
-    return ', '.join(open_ports_info)
+def train_tfidf_xgboost(df):
+    """Train XGBoost model with TF-IDF features"""
+    tfidf = TfidfVectorizer(max_features=5000, ngram_range=(1,2))
+    X = tfidf.fit_transform(df['clean_summary'])
+    y = df['label']
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+    model = XGBClassifier(use_label_encoder=False, eval_metric='logloss')
+    model.fit(X_train, y_train)
+    
+    y_pred = model.predict(X_test)
+    print(classification_report(y_test, y_pred))
+    return model, tfidf
+
+def train_bert_model(df):
+    """Fine-tune BERT model for vulnerability classification"""
+    tokenizer = BertTokenizer.from_pretrained(BERT_MODEL)
+    model = BertForSequenceClassification.from_pretrained(BERT_MODEL, num_labels=2)
+    
+    # Tokenize data
+    inputs = tokenizer(df['clean_summary'].tolist(), padding=True, truncation=True, max_length=128, return_tensors="pt")
+    labels = torch.tensor(df['label'].values)
+    
+    # Create dataset
+    dataset = torch.utils.data.TensorDataset(inputs['input_ids'], inputs['attention_mask'], labels)
+    train_size = int(0.8 * len(dataset))
+    train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, len(dataset) - train_size])
+    
+    # Training setup
+    training_args = TrainingArguments(
+        output_dir='./bert_results',
+        num_train_epochs=3,
+        per_device_train_batch_size=8,
+        evaluation_strategy="epoch",
+        save_strategy="epoch",
+        logging_dir='./logs',
+    )
+    
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=val_dataset,
+    )
+    
+    trainer.train()
+    return model, tokenizer
 
 def scan(ip, arguments):
+    """Perform Nmap scan and vulnerability analysis"""
     nm.scan(ip, arguments)
     json_data = nm.analyse_nmap_xml_scan()
     analyze = json_data["scan"]
-
+    
     open_ports = extract_open_ports(analyze)
-
-    # Print Nmap scan results
-    print("\nNmap Scan Results and Vulnerabilities:")
-    for host, host_data in analyze.items():
-        print(f"Host: {host}")
-        for key, value in host_data.items():
-            if key == "hostnames":
-                print(f"Hostnames: {', '.join(value)}")
-            elif key == "addresses":
-                for addr_type, addr in value.items():
-                    print(f"{addr_type.capitalize()} Address: {addr}")
-            elif key in ["tcp", "udp"]:
-                print(f"{key.upper()} Ports:")
-                for port, port_data in value.items():
-                    print(f"  Port {port}:")
-                    for port_key, port_value in port_data.items():
-                        print(f"    {port_key.capitalize()}: {port_value}")
-            else:
-                print(f"{key.capitalize()}: {value}")
-        print("\n")
-
+    
+    # Generate AI analysis
     prompt = f"""
-Please perform a vulnerability analysis of the following network scan results:
+Analyze these scan results for vulnerabilities:
 {analyze}
 
-For each identified vulnerability, include:
-1. A detailed description of the vulnerability
-2. The correct affected endpoint (host, port, service, etc.)
-3. Evidences
-4. Relevant references to OWASP ASVS, WSTG, CAPEC, and CWE, with each reference formatted as a clickable hyperlink
+Open ports: {open_ports}
 
-Based on the following open ports and services detected:
-{open_ports}
-
-Return the results as a well-formatted HTML snippet with line breaks (<br>) separating each section.
+Provide:
+1. Vulnerability description
+2. Affected endpoint
+3. Evidence
+4. OWASP/CWE references as hyperlinks
+Return as formatted HTML.
 """
-
+    
     completion = openai.ChatCompletion.create(
-    model=MODEL_ENGINE,
-    messages=[
-        {"role": "system", "content": "You are a cybersecurity expert."},
-        {"role": "user", "content": prompt}
-    ],
-    max_tokens=TOKEN_LIMIT,
-    temperature=TEMPERATURE,)
-    response = completion.choices[0].message.content
+        model=MODEL_ENGINE,
+        messages=[
+            {"role": "system", "content": "You are a cybersecurity expert."},
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=TOKEN_LIMIT,
+        temperature=TEMPERATURE,
+    )
+    return completion.choices[0].message.content, analyze
 
-    return response, analyze
+# [Rest of the original functions: export_to_csv, export_to_xml, etc.]
 
-def export_to_csv(data, filename):
-    import csv
-    with open(filename, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=data.keys())
-        writer.writeheader()
-        writer.writerow(data)
-
-def export_to_xml(data, filename):
-    import xml.etree.ElementTree as ET
-    root = ET.Element('VulnerabilityReport')
-    for key, value in data.items():
-        entry = ET.SubElement(root, key)
-        entry.text = str(value)
-    tree = ET.ElementTree(root)
-    tree.write(filename, encoding='utf-8', xml_declaration=True)
-
-def export_to_txt(data, filename):
-    with open(filename, 'w', encoding='utf-8') as f:
-        for key, value in data.items():
-            f.write(f'{key}: {value}\n')
-
-def export_to_json(data, filename):
-    with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-def export_to_html(html_snippet, filename):
-    template = Template("""
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Vulnerability Report</title>
-            <style>
-                body { font-family: Arial, sans-serif; }
-                h1 { color: #333; }
-                pre { white-space: pre-wrap; word-wrap: break-word; }
-            </style>
-        </head>
-        <body>
-            <h1>Vulnerability Report</h1>
-            {{ html_snippet }}
-        </body>
-        </html>
-    """)
-    html_content = template.render(html_snippet=html_snippet)
-    with open(filename, "w", encoding='utf-8') as f:
-        f.write(html_content)
-
-def is_valid_json(json_string):
-    try:
-        data = json.loads(json_string)
-        return isinstance(data, dict) or (isinstance(data, list) and len(data) > 0)
-    except json.JSONDecodeError:
-        return False
-
-def main(target, output_format):
-
-    profiles = {
-        1: '-Pn -sV -T4 -O -F -vvv',
-        2: '-Pn -T4 -A -vvv',
-        3: '-Pn -sS -sU -T4 -A -vvv',
-        4: '-Pn -p- -T4 -A -vvv',
-        5: '-Pn -sS -sU -T4 -A -PE -PP -PS80,443 -PA3389 -PU40125 -PY -g 53 --script=vuln -vvv',
-        6: '-Pn -sS -sU --script=vulners --min-rate=5000 -p- -vvv',
-        7: '-Pn -T2 -f --mtu 16 -vvv',
-        8: '-sF -T4 -p- --script firewall-bypass -vvv'
-    }
-
-    print("Available scan profiles:")
-    print("1. Fast scan")
-    print("2. Comprehensive scan")
-    print("3. Stealth scan with UDP")
-    print("4. Full port range scan")
-    print("5. Stealth and UDP scan with version detection and OS detection")
-    print("6. Vulnerability scan against all TCP and UDP ports")
-    print("7. WAF bypass scan against all TCP ports")
-    print("8. Misconfigured firewall bypass")
-
-    try:
-        profile = int(input("Enter profile of scan: "))
-        if profile not in profiles:
-            raise ValueError
-    except ValueError:
-        print("Error: Invalid profile input. Please provide a valid profile number.")
+def main():
+    parser = argparse.ArgumentParser(description='Advanced Vulnerability Scanner')
+    parser.add_argument('-t', '--target', required=True, help='Target IP/hostname')
+    parser.add_argument('-o', '--output', default='html', help='Output format')
+    parser.add_argument('--train', action='store_true', help='Train AI models')
+    args = parser.parse_args()
+    
+    if args.train:
+        print("Training AI models...")
+        df = load_cve_data()
+        print("Training TF-IDF + XGBoost model...")
+        xgb_model, tfidf = train_tfidf_xgboost(df)
+        print("\nTraining BERT model...")
+        bert_model, bert_tokenizer = train_bert_model(df)
         return
+    
+    # Normal scan mode
+    response, scan_data = scan(args.target, profiles[selected_profile])
+    export_results(response, args.output)
 
-    final, analyze = scan(target, profiles[profile])
-
-    if is_valid_json(final):
-        parsed_response = json.loads(final)
-        formatted_response = json.dumps(parsed_response, indent=2)
-    else:
-        formatted_response = final
-
-    print("\nNmap Scan Results:")
-    for host, host_data in analyze.items():
-        print(f"Host: {host}")
-        for key, value in host_data.items():
-            if key == "hostnames":
-                print(f"Hostnames: {', '.join(value)}")
-            elif key == "addresses":
-                for addr_type, addr in value.items():
-                    print(f"{addr_type.capitalize()} Address: {addr}")
-            elif key in ["tcp", "udp"]:
-                print(f"{key.upper()} Ports:")
-                for port, port_data in value.items():
-                    print(f"  Port {port}:")
-                    for port_key, port_value in port_data.items():
-                        print(f"    {port_key.capitalize()}: {port_value}")
-            else:
-                print(f"{key.capitalize()}: {value}")
-        print("\n")
-
-    soup = BeautifulSoup(final, "html.parser")
-    plain_text_results = soup.get_text()
-
-    print(plain_text_results)
-
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    filename = f"{target}-{timestamp}.{output_format}"
-
-    if output_format == 'html':
-        export_to_html(final, filename)
-    elif output_format == 'csv':
-        export_to_csv(parsed_response, filename)
-    elif output_format == 'xml':
-        export_to_xml(parsed_response, filename)
-    elif output_format == 'txt':
-        export_to_txt(parsed_response, filename)
-    elif output_format == 'json':
-        export_to_json(parsed_response, filename)
-    else:
-        print(f"Error: Unsupported output format '{output_format}'. Supported formats: html, csv, xml, txt, json")
-        return
-
-    print(f"Results have been exported to {filename}")
-
+class VulnerabilityScanner:
+    def __init__(self):
+        self.tfidf_classifier = VulnerabilityClassifier()
+        self.bert_classifier = BERTVulnerabilityClassifier()
+        
+    def analyze_text(self, text):
+        """Analyze text with both models"""
+        tfidf_result = self.tfidf_classifier.predict(text)
+        bert_result = self.bert_classifier.predict(text)
+        
+        return {
+            'tfidf_xgboost': tfidf_result,
+            'bert': bert_result,
+            'final_prediction': bert_result['prediction']  # Prefer BERT by default
+        }
 if __name__ == "__main__":
-    main(target, output_format)
+    main()

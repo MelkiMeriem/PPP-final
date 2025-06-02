@@ -7,8 +7,7 @@
 - Automated web scanning interface
 - AI-powered vulnerability detection
 - Comprehensive PDF report generation
-- Terminal-like interface for commands
-- Full Attack Types scanning
+- Attack Types scanning
 - Detailed vulnerability analysis
 - Intelligent fuzzing capabilities
 - Comprehensive vulnerability reporting
@@ -75,8 +74,8 @@ OTHER_CONFIG=some_value
 
 This project consists of two main parts:
 
-1. **AI Web Fuzzer** - Python backend application responsible for performing the fuzzing and vulnerability analysis
-2. **React Frontend** - Web application interface built with Create React App to interact with the fuzzer
+1. **AI Web Pentesting tool** - Python backend application responsible for performing the fuzzing and vulnerability analysis
+2. **React Frontend** - Web application interface built with Create React App to interact with the vulnerability scanner and the fuzzer .
 
 ### Running the Application
 
@@ -86,7 +85,7 @@ cd public
 npm start
 ```
 
-The application will be available at `http://localhost:3000`
+The application will be available at `http://localhost:3001`
 
 2. In a separate terminal, run the Python backend fuzzer:
 ```bash
@@ -119,15 +118,9 @@ PPP-final/
   - npm
   - Libraries:
     - jspdf for PDF generation
-    - terminal-in-react for terminal interface
     - Testing libraries (@testing-library/react, @testing-library/jest-dom)
 
 - Backend:
   - Python 3.8+ (Recommended: Python 3.10+)
   - Linux operating system support
   - Virtual environment support
-
-## Additional Information
-
-For React-specific info, see the Create React App documentation.
-For Python backend details, refer to the comments and documentation within the aiwebfuzzer/ directory.

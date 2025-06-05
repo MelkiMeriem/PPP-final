@@ -11,7 +11,7 @@ const AboutSection = () => {
     { name: 'Selim Soussi', photo: selim },
     { name: 'Melki Meriem', photo: melki },
     { name: 'Yossr Attia', photo: yossr },
-    { name: 'Meriem Belghouthi', photo: meriem }
+    { name: 'Mariem Belghouthi', photo: meriem }
   ];
 
   // Fallback image if main image fails to load
